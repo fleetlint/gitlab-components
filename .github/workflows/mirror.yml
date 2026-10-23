@@ -1,0 +1,30 @@
+name: mirror
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+permissions:
+  contents: read
+concurrency: mirror
+jobs:
+  gitlab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # A tag pushed to GitLab runs its release job, which publishes the version to the catalog.
+      - name: Push main and the tags to gitlab.com/fleetlint/components
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_MIRROR_TOKEN }}
+        run: |
+          if [ -z "$GITLAB_TOKEN" ]; then
+            echo "::notice::GITLAB_MIRROR_TOKEN is not set; nothing mirrored"
+            exit 0
+          fi
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.https://gitlab.com/.extraheader
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'oauth2:%s' "$GITLAB_TOKEN" | base64 -w0)"
+          export GIT_CONFIG_VALUE_0
+          git push https://gitlab.com/fleetlint/components.git refs/remotes/origin/main:refs/heads/main 'refs/tags/*:refs/tags/*'

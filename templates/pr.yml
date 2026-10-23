@@ -1,0 +1,54 @@
+spec:
+  description: On scheduled and manually run pipelines, opens or updates a merge request with fleetlint's changes, with the token in FLEETLINT_TOKEN. The onboarding configuration when the project has none, else the mechanical fixes of the default branch.
+  inputs:
+    job-name:
+      description: Name of the job.
+      default: fleetlint-pr
+    stage:
+      description: Stage the job runs in.
+      default: test
+    version:
+      description: fleetlint release to install; merge requests for fixes need a release after 0.8.1.
+      default: v0.8.1
+      regex: ^v?\d+\.\d+\.\d+$
+    path:
+      description: Directory to check, relative to the project.
+      default: .
+    verify:
+      description: "cosign: require the cosign signature of the release's checksums; checksum: the checksum only."
+      default: cosign
+      options: [cosign, checksum]
+    image:
+      description: Alpine image the job runs in, such as one from the dependency proxy.
+      default: alpine:3.22
+---
+"$[[ inputs.job-name ]]":
+  stage: $[[ inputs.stage ]]
+  image: $[[ inputs.image ]]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" || $CI_PIPELINE_SOURCE == "web"
+  variables:
+    FLEETLINT_VERSION: $[[ inputs.version ]]
+    FLEETLINT_VERIFY: $[[ inputs.verify ]]
+    FLEETLINT_PATH: $[[ inputs.path ]]
+  before_script:
+    - |
+      if [ -z "${FLEETLINT_TOKEN:-}" ]; then
+        echo "fleetlint-pr needs FLEETLINT_TOKEN: a project access token with the api and write_repository scopes, as a masked CI/CD variable"
+        exit 1
+      fi
+    - apk add --no-cache curl git jq
+    - if [ "$FLEETLINT_VERIFY" = cosign ]; then apk add --no-cache cosign; fi
+    - curl --proto '=https' --tlsv1.2 -fsSL "https://raw.githubusercontent.com/fleetlint/fleetlint/v${FLEETLINT_VERSION#v}/scripts/install.sh" | sh -s -- "$FLEETLINT_VERSION" /usr/local/bin
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+  script:
+    # fleetlint pushes with FLEETLINT_TOKEN, not the job token in the clone URL.
+    - git remote set-url origin "$CI_PROJECT_URL.git"
+    - export GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-fleetlint}" GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-fleetlint@noreply.$CI_SERVER_HOST}"
+    - export GIT_COMMITTER_NAME="${GIT_COMMITTER_NAME:-$GIT_AUTHOR_NAME}" GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL:-$GIT_AUTHOR_EMAIL}"
+    - |
+      if [ -f "$FLEETLINT_PATH/.fleetlint.yaml" ] || [ -f "$FLEETLINT_PATH/fleetlint.yaml" ]; then
+        fleetlint -C "$FLEETLINT_PATH" fix --apply --pr
+      else
+        fleetlint -C "$FLEETLINT_PATH" init --pr
+      fi

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", ":semanticCommits"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "The fleetlint release the components install",
+      "managerFilePatterns": ["/^templates/.+\\.yml$/"],
+      "matchStrings": ["version:\\n(?:\\s+description: .*\\n)?\\s+default: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "fleetlint/fleetlint",
+      "datasourceTemplate": "github-releases"
+    }
+  ]
+}

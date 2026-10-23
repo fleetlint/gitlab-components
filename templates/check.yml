@@ -1,0 +1,58 @@
+spec:
+  description: Checks the project against its fleetlint rules. Findings show in the merge request's Code Quality widget; the job fails at fail-on.
+  inputs:
+    job-name:
+      description: Name of the job.
+      default: fleetlint
+    stage:
+      description: Stage the job runs in.
+      default: test
+    version:
+      description: fleetlint release to install.
+      default: v0.8.1
+      regex: ^v?\d+\.\d+\.\d+$
+    fail-on:
+      description: Lowest severity that fails the job.
+      default: error
+      options: [error, warning, info, never]
+    path:
+      description: Directory to check, relative to the project.
+      default: .
+    verify:
+      description: "cosign: require the cosign signature of the release's checksums; checksum: the checksum only."
+      default: cosign
+      options: [cosign, checksum]
+    image:
+      description: Alpine image the job runs in, such as one from the dependency proxy.
+      default: alpine:3.22
+---
+"$[[ inputs.job-name ]]":
+  stage: $[[ inputs.stage ]]
+  image: $[[ inputs.image ]]
+  variables:
+    FLEETLINT_VERSION: $[[ inputs.version ]]
+    FLEETLINT_VERIFY: $[[ inputs.verify ]]
+    FLEETLINT_FAIL_ON: $[[ inputs.fail-on ]]
+    FLEETLINT_PATH: $[[ inputs.path ]]
+  before_script:
+    - apk add --no-cache curl git jq
+    - if [ "$FLEETLINT_VERIFY" = cosign ]; then apk add --no-cache cosign; fi
+    - curl --proto '=https' --tlsv1.2 -fsSL "https://raw.githubusercontent.com/fleetlint/fleetlint/v${FLEETLINT_VERSION#v}/scripts/install.sh" | sh -s -- "$FLEETLINT_VERSION" /usr/local/bin
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+  script:
+    - fleetlint -C "$FLEETLINT_PATH" check --format json --fail-on never > fleetlint.json
+    # GitLab's Code Quality format: one entry per finding, located when the finding has a path.
+    - prefix=""; [ "$FLEETLINT_PATH" = . ] || prefix="${FLEETLINT_PATH%/}/"
+    - |
+      jq --arg prefix "$prefix" '[.results[] | select(.status == "fail") | . as $r
+        | (if (.findings // []) | length > 0 then .findings[] else {message: $r.rule.title} end)
+        | {description: "\($r.rule.id): \(.message)", check_name: $r.rule.id,
+           fingerprint: ("\($r.rule.id)|\(.path // "")|\(.line // 0)|\(.message)" | @base64),
+           severity: ({"error": "major", "warning": "minor"}[$r.severity] // "info"),
+           location: {path: ($prefix + (.path // ".fleetlint.yaml")), lines: {begin: ((.line // 0) | if . > 0 then . else 1 end)}}}]' fleetlint.json > gl-code-quality-report.json
+    - fleetlint -C "$FLEETLINT_PATH" check --fail-on "$FLEETLINT_FAIL_ON" --color=false
+  artifacts:
+    when: always
+    reports:
+      codequality: gl-code-quality-report.json
+    paths: [fleetlint.json]
