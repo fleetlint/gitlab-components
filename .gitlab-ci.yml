@@ -1,16 +1,10 @@
 # Tests the components on GitLab and publishes a version tag to the CI/CD catalog.
 include:
-  - component: $CI_SERVER_FQDN/$CI_PROJECT_PATH/check@$CI_COMMIT_SHA
+  - component: $CI_SERVER_FQDN/$CI_PROJECT_PATH/fleetlint@$CI_COMMIT_SHA
     inputs:
       fail-on: never
-  - component: $CI_SERVER_FQDN/$CI_PROJECT_PATH/pr@$CI_COMMIT_SHA
 
 stages: [test, release]
-
-# Included to validate it; it would open merge requests on this project.
-fleetlint-pr:
-  rules:
-    - when: never
 
 create-release:
   stage: release

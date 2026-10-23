@@ -1,5 +1,5 @@
 spec:
-  description: Checks the project against its fleetlint rules. Findings show in the merge request's Code Quality widget; the job fails at fail-on.
+  description: Checks the project against its fleetlint rules, with the findings in the merge request's Code Quality widget. With pr, pipelines of the default branch also open or update a merge request, with the token in FLEETLINT_TOKEN. A project without a configuration gets the onboarding configuration; one with a configuration gets the mechanical fixes.
   inputs:
     job-name:
       description: Name of the job.
@@ -8,13 +8,17 @@ spec:
       description: Stage the job runs in.
       default: test
     version:
-      description: fleetlint release to install.
+      description: fleetlint release to install; merge requests for fixes need a release after 0.8.1.
       default: v0.8.1
       regex: ^v?\d+\.\d+\.\d+$
     fail-on:
-      description: Lowest severity that fails the job.
+      description: Lowest severity that fails the job. A project that is being onboarded is not gated.
       default: error
       options: [error, warning, info, never]
+    pr:
+      description: On pipelines of the default branch, open or update a merge request with the onboarding configuration or the fixes.
+      type: boolean
+      default: false
     path:
       description: Directory to check, relative to the project.
       default: .
@@ -34,7 +38,19 @@ spec:
     FLEETLINT_VERIFY: $[[ inputs.verify ]]
     FLEETLINT_FAIL_ON: $[[ inputs.fail-on ]]
     FLEETLINT_PATH: $[[ inputs.path ]]
+    FLEETLINT_PR: "$[[ inputs.pr ]]"
   before_script:
+    - |
+      propose=false
+      if [ "$FLEETLINT_PR" = true ] && [ "${CI_COMMIT_BRANCH:-}" = "$CI_DEFAULT_BRANCH" ]; then
+        propose=true
+        if [ -z "${FLEETLINT_TOKEN:-}" ]; then
+          echo "pr: true needs FLEETLINT_TOKEN: a project access token with the api and write_repository scopes, as a masked CI/CD variable"
+          exit 1
+        fi
+      fi
+      configured=false
+      if [ -f "$FLEETLINT_PATH/.fleetlint.yaml" ] || [ -f "$FLEETLINT_PATH/fleetlint.yaml" ]; then configured=true; fi
     - apk add --no-cache curl git jq
     - if [ "$FLEETLINT_VERIFY" = cosign ]; then apk add --no-cache cosign; fi
     - curl --proto '=https' --tlsv1.2 -fsSL "https://raw.githubusercontent.com/fleetlint/fleetlint/v${FLEETLINT_VERSION#v}/scripts/install.sh" | sh -s -- "$FLEETLINT_VERSION" /usr/local/bin
@@ -50,7 +66,24 @@ spec:
            fingerprint: ("\($r.rule.id)|\(.path // "")|\(.line // 0)|\(.message)" | @base64),
            severity: ({"error": "major", "warning": "minor"}[$r.severity] // "info"),
            location: {path: ($prefix + (.path // ".fleetlint.yaml")), lines: {begin: ((.line // 0) | if . > 0 then . else 1 end)}}}]' fleetlint.json > gl-code-quality-report.json
-    - fleetlint -C "$FLEETLINT_PATH" check --fail-on "$FLEETLINT_FAIL_ON" --color=false
+    - |
+      if [ "$propose" = true ]; then
+        # fleetlint pushes with FLEETLINT_TOKEN, not the job token in the clone URL.
+        git remote set-url origin "$CI_PROJECT_URL.git"
+        export GIT_AUTHOR_NAME="${GIT_AUTHOR_NAME:-fleetlint}" GIT_AUTHOR_EMAIL="${GIT_AUTHOR_EMAIL:-fleetlint@noreply.$CI_SERVER_HOST}"
+        export GIT_COMMITTER_NAME="${GIT_COMMITTER_NAME:-$GIT_AUTHOR_NAME}" GIT_COMMITTER_EMAIL="${GIT_COMMITTER_EMAIL:-$GIT_AUTHOR_EMAIL}"
+        if [ "$configured" = true ]; then
+          fleetlint -C "$FLEETLINT_PATH" fix --apply --pr
+        else
+          fleetlint -C "$FLEETLINT_PATH" init --pr
+        fi
+      fi
+    - |
+      if [ "$propose" = true ] && [ "$configured" = false ]; then
+        echo "not gated: the onboarding merge request proposes the configuration"
+      else
+        fleetlint -C "$FLEETLINT_PATH" check --fail-on "$FLEETLINT_FAIL_ON" --color=false
+      fi
   artifacts:
     when: always
     reports:

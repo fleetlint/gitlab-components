@@ -1,0 +1,6 @@
+#!/bin/sh
+# Stands in for fleetlint's --pr commands, which need a forge; everything else is the real one.
+case " $* " in
+  *" --pr "*) echo "stub: fleetlint $*" ;;
+  *) exec /usr/local/bin/fleetlint "$@" ;;
+esac

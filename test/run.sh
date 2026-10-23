@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Runs the components' jobs in their image the way a GitLab runner would:
-# inputs at their defaults, the job's variables exported, before_script and
-# script in one shell. Needs yq and docker (CONTAINER=podman works too).
+# Runs the component's job in its image the way a GitLab runner would:
+# inputs rendered, the job's variables exported, before_script and script
+# in one shell. A stub answers fleetlint's --pr commands, which need a forge.
+# Needs yq and docker (CONTAINER=podman works too).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 container=${CONTAINER:-docker}
@@ -23,39 +24,62 @@ render() {
     body=${body//"\$[[ inputs.$name ]]"/$value}
   done
   if grep -q '\$\[\[' <<<"$body"; then
-    echo "$1: inputs left unrendered" >&2
+    echo "$file: inputs left unrendered" >&2
     return 1
   fi
   printf '%s\n' "$body"
 }
 
-# job runs a template's job in a copy of the project, which it keeps:
-# job <template> <copy> <FLEETLINT_TOKEN> [input=value...]
+# job runs the job in a fresh copy of the project, whose log it keeps:
+# job <name> <branch> <FLEETLINT_TOKEN> [input=value...]
+# A function prepare_<name>, if defined, edits the copy first.
 job() {
-  local dir="$work/$2"
-  render "templates/$1.yml" "${@:4}" >"$work/$1.yml"
-  yq '.[] | [(.variables | to_entries | .[] | "export " + .key + "=" + (.value | @sh))] + .before_script + .script | .[]' "$work/$1.yml" >"$work/$1.sh"
+  local dir="$work/$1"
   cp -r . "$dir"
-  "$container" run --rm -v "$dir:/builds/project:Z" -v "$work/$1.sh:/job.sh:ro,Z" -w /builds/project \
+  if declare -F "prepare_$1" >/dev/null; then "prepare_$1" "$dir"; fi
+  render templates/fleetlint.yml "${@:4}" >"$work/$1.yml"
+  yq '.[] | [(.variables | to_entries | .[] | "export " + .key + "=" + (.value | @sh))] + .before_script + .script | .[]' "$work/$1.yml" >"$work/$1.sh"
+  "$container" run --rm -v "$dir:/builds/project:Z" -v "$work/$1.sh:/job.sh:ro,Z" -v "$PWD/test/stub:/stub:ro,Z" -w /builds/project \
     -e CI_PROJECT_DIR=/builds/project -e CI_PROJECT_URL=https://gitlab.example/fleetlint/components \
-    -e CI_SERVER_HOST=gitlab.example -e FLEETLINT_TOKEN="$3" \
-    "$(yq '.[].image' "$work/$1.yml")" sh -e /job.sh
+    -e CI_SERVER_HOST=gitlab.example -e CI_DEFAULT_BRANCH=main -e CI_COMMIT_BRANCH="$2" -e FLEETLINT_TOKEN="$3" \
+    -e PATH=/stub:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    "$(yq '.[].image' "$work/$1.yml")" sh -e /job.sh >"$work/$1.log" 2>&1
 }
 
-job check check "" fail-on=never
+fail() {
+  echo "$1" >&2
+  [ -f "$work/$2.log" ] && tail -5 "$work/$2.log" >&2
+  exit 1
+}
+
+job check main "" fail-on=never || fail "check: failed" check
 jq -e 'type == "array"' "$work/check/gl-code-quality-report.json" >/dev/null
 jq -e '.summary' "$work/check/fleetlint.json" >/dev/null
 echo "check: ran, wrote the Code Quality report"
 
-if job check gate "" >"$work/gate.log" 2>&1 || ! grep -q "^FAIL " "$work/gate.log"; then
-  echo "check: passed at fail-on error, though the project has error findings" >&2
-  exit 1
+if job gate main "" || ! grep -q "^FAIL " "$work/gate.log"; then
+  fail "gate: passed at fail-on error, though the project has error findings" gate
 fi
-echo "check: fails at fail-on error"
+echo "gate: fails at fail-on error"
 
-if job pr pr "" >"$work/pr.log" 2>&1; then
-  echo "pr: ran without FLEETLINT_TOKEN" >&2
-  exit 1
+if job notoken main "" pr=true; then
+  fail "pr: ran without FLEETLINT_TOKEN" notoken
 fi
-grep -q "needs FLEETLINT_TOKEN" "$work/pr.log"
+grep -q "needs FLEETLINT_TOKEN" "$work/notoken.log" || fail "pr: no message about FLEETLINT_TOKEN" notoken
 echo "pr: refuses to run without FLEETLINT_TOKEN"
+
+job branch feature "" pr=true fail-on=never || fail "branch: failed" branch
+if grep -q "^stub:" "$work/branch.log"; then
+  fail "pr: proposed changes from a branch other than the default" branch
+fi
+echo "pr: only checks off the default branch"
+
+job fixes main token pr=true fail-on=never || fail "fixes: failed" fixes
+grep -q "^stub: fleetlint -C . fix --apply --pr" "$work/fixes.log" || fail "pr: no fixes merge request for a configured project" fixes
+echo "pr: proposes the fixes of a configured project"
+
+prepare_onboarding() { rm "$1/.fleetlint.yaml"; }
+job onboarding main token pr=true || fail "onboarding: gated or failed" onboarding
+grep -q "^stub: fleetlint -C . init --pr" "$work/onboarding.log" || fail "pr: no onboarding merge request for a project without a configuration" onboarding
+grep -q "not gated" "$work/onboarding.log" || fail "pr: the onboarding run was gated" onboarding
+echo "pr: onboards a project without a configuration, without gating it"
