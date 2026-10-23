@@ -7,6 +7,11 @@ include:
 
 stages: [test, release]
 
+# Included to validate it; it would open merge requests on this project.
+fleetlint-pr:
+  rules:
+    - when: never
+
 create-release:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:v0.24.0
