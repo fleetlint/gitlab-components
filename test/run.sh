@@ -46,6 +46,10 @@ job() {
     "$(yq '.[].image' "$work/$1.yml")" sh -e /job.sh >"$work/$1.log" 2>&1
 }
 
+# GitLab refuses a component whose spec description is longer than 256 characters.
+len=$(awk '/^---$/ {exit} {print}' templates/fleetlint.yml | yq '.spec.description | length')
+[ "$len" -le 256 ] || { echo "spec description: $len characters, GitLab allows 256" >&2; exit 1; }
+
 fail() {
   echo "$1" >&2
   [ -f "$work/$2.log" ] && tail -5 "$work/$2.log" >&2

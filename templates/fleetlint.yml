@@ -1,5 +1,5 @@
 spec:
-  description: Checks the project against its fleetlint rules, with the findings in the merge request's Code Quality widget. With pr, pipelines of the default branch also open or update a merge request, with the token in FLEETLINT_TOKEN. A project without a configuration gets the onboarding configuration; one with a configuration gets the mechanical fixes.
+  description: Checks the project against its fleetlint rules, with the findings in Code Quality. With pr, pipelines of the default branch also open a merge request with the onboarding configuration or the fixes.
   inputs:
     job-name:
       description: Name of the job.
