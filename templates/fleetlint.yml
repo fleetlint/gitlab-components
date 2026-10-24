@@ -8,8 +8,8 @@ spec:
       description: Stage the job runs in.
       default: test
     version:
-      description: fleetlint release to install; merge requests for fixes need a release after 0.8.1.
-      default: v0.8.1
+      description: fleetlint release to install; pr needs v0.9.0 or newer.
+      default: v0.9.0
       regex: ^v?\d+\.\d+\.\d+$
     fail-on:
       description: Lowest severity that fails the job. A project that is being onboarded is not gated.

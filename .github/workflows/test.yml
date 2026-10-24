@@ -15,11 +15,3 @@ jobs:
         with:
           persist-credentials: false
       - run: ./test/run.sh
-      - name: A tag installs the fleetlint release of its name
-        if: github.ref_type == 'tag'
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          for t in templates/*.yml; do
-            test "$(awk '/^---$/ {exit} {print}' "$t" | yq .spec.inputs.version.default)" = "v$TAG"
-          done

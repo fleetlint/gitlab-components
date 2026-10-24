@@ -2,7 +2,7 @@
 
 A GitLab CI/CD component for [fleetlint](https://fleetlint.org): it checks a project's setup against its fleetlint rules and, with `pr: true`, opens merge requests with the onboarding configuration or the mechanical fixes.
 
-A component version installs the fleetlint release of the same number: `fleetlint@0.8.1` runs fleetlint v0.8.1 (merge requests for fixes need a release after 0.8.1). The inputs are described in the [CI/CD catalog](https://gitlab.com/explore/catalog/fleetlint/components).
+The inputs are described in the [CI/CD catalog](https://gitlab.com/explore/catalog/fleetlint/components). Versions are below.
 
 ## Components
 
@@ -10,13 +10,13 @@ A component version installs the fleetlint release of the same number: `fleetlin
 
 ```yaml
 include:
-  - component: gitlab.com/fleetlint/components/fleetlint@0.8.1
+  - component: gitlab.com/fleetlint/components/fleetlint@0.1.0
     inputs:
       fail-on: warning
       pr: true
 ```
 
-Installs the release with fleetlint's install script of that tag and requires the cosign signature of its checksums (`verify: checksum` checks the checksum only). Every run checks the project, reports every finding in the merge request's Code Quality widget, keeps `fleetlint.json` as an artifact and fails at `fail-on` (default `error`).
+Installs the fleetlint release of `version` with fleetlint's install script of that tag and requires the cosign signature of its checksums (`verify: checksum` checks the checksum only). Every run checks the project, reports every finding in the merge request's Code Quality widget, keeps `fleetlint.json` as an artifact and fails at `fail-on` (default `error`).
 
 With `pr: true`, a pipeline of the default branch also opens or updates a merge request:
 
@@ -33,11 +33,19 @@ A component can only be included from the instance it is published on. On a self
 
 ```yaml
 include:
-  - remote: https://raw.githubusercontent.com/fleetlint/gitlab-components/0.8.1/templates/fleetlint.yml
+  - remote: https://raw.githubusercontent.com/fleetlint/gitlab-components/0.1.0/templates/fleetlint.yml
     inputs:
       fail-on: warning
 ```
 
+## Versions
+
+The component has its own versions (semantic versioning, [CHANGELOG.md](CHANGELOG.md)), independent of fleetlint's. Each pins a fleetlint release as the `version` default; Renovate bumps it, and a release of the component follows. Set `version` to run another fleetlint release.
+
+| Component | Installs by default | Needs |
+|---|---|---|
+| 0.1.0 | fleetlint v0.9.0 | `pr`: fleetlint 0.9.0 or newer |
+
 ## Contribute
 
-The source is [github.com/fleetlint/gitlab-components](https://github.com/fleetlint/gitlab-components), mirrored to [gitlab.com/fleetlint/components](https://gitlab.com/fleetlint/components); a version tag pushed there runs the release job, which publishes it to the catalog. `test/run.sh` runs the job in its image the way a runner does, with a stub for the commands that need a forge (needs `yq` and docker, or `CONTAINER=podman`). A release bumps the `version` default to the new fleetlint release and tags the same number without the `v`.
+The source is [github.com/fleetlint/gitlab-components](https://github.com/fleetlint/gitlab-components), mirrored to [gitlab.com/fleetlint/components](https://gitlab.com/fleetlint/components); a version tag pushed there runs the release job, which publishes it to the catalog. `test/run.sh` runs the job in its image the way a runner does, with a stub for the commands that need a forge (needs `yq` and docker, or `CONTAINER=podman`). A release dates the `[Unreleased]` section of CHANGELOG.md and tags its number without a `v`; the release job takes that section as the notes.
