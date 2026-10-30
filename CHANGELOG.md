@@ -5,6 +5,12 @@ Format: Keep a Changelog. Versioning: Semantic Versioning, independent of fleetl
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-30
+
+### Changed
+
+- Installs fleetlint v0.10.0 by default, whose `init` writes the detected stacks and published artifacts into `.fleetlint.yaml`, so the onboarding merge request shows what is checked.
+
 ## [0.1.0] - 2026-10-24
 
 The first release. It installs fleetlint v0.9.0 by default.

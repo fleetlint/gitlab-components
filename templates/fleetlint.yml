@@ -9,7 +9,7 @@ spec:
       default: test
     version:
       description: fleetlint release to install; pr needs v0.9.0 or newer.
-      default: v0.9.0
+      default: v0.10.0
       regex: ^v?\d+\.\d+\.\d+$
     fail-on:
       description: Lowest severity that fails the job. A project that is being onboarded is not gated.
