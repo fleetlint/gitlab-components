@@ -8,7 +8,7 @@ spec:
       description: Stage the job runs in.
       default: test
     version:
-      description: fleetlint release to install; pr needs v0.10.0 or newer.
+      description: fleetlint release to install; pr needs v0.9.0 or newer.
       default: v0.10.0
       regex: ^v?\d+\.\d+\.\d+$
     fail-on:
