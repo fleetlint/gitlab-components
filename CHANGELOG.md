@@ -5,11 +5,11 @@ Format: Keep a Changelog. Versioning: Semantic Versioning, independent of fleetl
 
 ## [Unreleased]
 
-## [0.1.1] - 2026-10-30
+## [0.2.0] - 2026-11-15
 
 ### Changed
 
-- Installs fleetlint v0.10.0 by default, whose `init` writes the detected stacks and published artifacts into `.fleetlint.yaml`, so the onboarding merge request shows what is checked.
+- Installs fleetlint v0.11.0 by default (0.1.0 installed v0.9.0). Since then `init` writes the detected stacks and published artifacts into `.fleetlint.yaml`, so the onboarding merge request shows what is checked (0.10.0); `exceptions: false` also forbids disabling a rule, so a configuration that disabled a security rule of `fleetlint:strict` no longer loads, and usage errors exit 2 instead of 3 (0.11.0). Set `version` to stay on an older release.
 
 ## [0.1.0] - 2026-10-24
 

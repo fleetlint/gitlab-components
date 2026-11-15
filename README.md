@@ -10,7 +10,7 @@ The inputs are described in the [CI/CD catalog](https://gitlab.com/explore/catal
 
 ```yaml
 include:
-  - component: gitlab.com/fleetlint/components/fleetlint@0.1.1
+  - component: gitlab.com/fleetlint/components/fleetlint@0.2.0
     inputs:
       fail-on: warning
       pr: true
@@ -33,7 +33,7 @@ A component can only be included from the instance it is published on. On a self
 
 ```yaml
 include:
-  - remote: https://raw.githubusercontent.com/fleetlint/gitlab-components/0.1.1/templates/fleetlint.yml
+  - remote: https://raw.githubusercontent.com/fleetlint/gitlab-components/0.2.0/templates/fleetlint.yml
     inputs:
       fail-on: warning
 ```
@@ -44,7 +44,7 @@ The component has its own versions (semantic versioning, [CHANGELOG.md](CHANGELO
 
 | Component | Installs by default | Needs |
 |---|---|---|
-| 0.1.1 | fleetlint v0.10.0 | `pr`: fleetlint 0.9.0 or newer |
+| 0.2.0 | fleetlint v0.11.0 | `pr`: fleetlint 0.9.0 or newer |
 | 0.1.0 | fleetlint v0.9.0 | `pr`: fleetlint 0.9.0 or newer |
 
 ## Contribute
